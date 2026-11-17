@@ -8,6 +8,8 @@ Python 표준 라이브러리만 사용하며, Python 설치 없이 zip 을 풀�
 ![메인 화면](docs/main.png)
 
 > 스크린샷은 [`make_demo.py`](make_demo.py) 로 만든 **가상의 회사·사람·메일** 입니다.
+>
+> 📄 프로젝트 소개서 (PDF, 6쪽): [docs/메일백업검색기_프로젝트소개.pdf](docs/메일백업검색기_프로젝트소개.pdf)
 
 ## 왜 만들었나
 
