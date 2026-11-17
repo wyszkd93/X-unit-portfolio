@@ -1,0 +1,5 @@
+# bat 은 CRLF 여야 cmd 가 제대로 읽는다
+*.bat text eol=crlf
+*.txt text eol=crlf
+*.png binary
+*.ico binary

@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>메일 백업 검색</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f6cbd'/%3E%3Crect x='12' y='18' width='40' height='28' rx='4' fill='none' stroke='%23fff' stroke-width='4.5'/%3E%3Cpath d='M14 21 L32 34 L50 21' fill='none' stroke='%23fff' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='48' cy='46' r='9' fill='%23fff'/%3E%3Ccircle cx='47' cy='45' r='4.2' fill='none' stroke='%230f6cbd' stroke-width='2.6'/%3E%3Cpath d='M50.2 48.2 L53 51' stroke='%230f6cbd' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f3f4f6; --side:#eef0f3; --panel:#ffffff; --line:#e1e4e8; --line-soft:#eceef1;
+  --text:#1b1f24; --sub:#4b5560; --muted:#7a838d;
+  --accent:#0f6cbd; --accent-hover:#0c5aa0; --accent-soft:#e6f0fa; --sel:#d6e7f8; --hover:#f2f6fb;
+  --mark:#fff1a8; --chip:#eef1f4; --shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.05);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141619; --side:#1a1d21; --panel:#202328; --line:#2f343a; --line-soft:#292d32;
+    --text:#e6e8eb; --sub:#b8bec5; --muted:#8a929b;
+    --accent:#4ea1ff; --accent-hover:#6fb3ff; --accent-soft:#1d2c3f; --sel:#23364d; --hover:#262b31;
+    --mark:#6b5a00; --chip:#2a2f35; --shadow:0 1px 2px rgba(0,0,0,.4); }
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:13.5px/1.5 "Segoe UI","Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+  display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+input,select{font:inherit;color:var(--text)}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+mark{background:var(--mark);color:inherit;border-radius:2px;padding:0 1px}
+
+/* ---------- 상단 바 ---------- */
+.topbar{height:52px;flex:none;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--accent);color:#fff}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;white-space:nowrap;width:216px}
+.brand svg.i{width:20px;height:20px}
+.menu-btn{display:none;color:#fff}
+.searchbox{flex:1;max-width:720px;display:flex;align-items:center;background:#fff;border-radius:6px;height:34px;padding:0 4px 0 10px;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.searchbox svg.i{color:#5b6570}
+.searchbox input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;color:#1b1f24}
+.searchbox select{border:0;outline:0;background:#f0f2f5;color:#1b1f24;border-radius:4px;height:26px;padding:0 6px;font-size:12.5px;cursor:pointer}
+.searchbox .clear{color:#7a838d;display:none;padding:4px;border-radius:4px}
+.searchbox .clear:hover{background:#eef0f3}
+.searchbox.has .clear{display:flex}
+.topbar .spacer{flex:1}
+.sync-btn{display:flex;align-items:center;gap:6px;color:#fff;border:1px solid rgba(255,255,255,.45);border-radius:6px;height:32px;padding:0 12px;white-space:nowrap}
+.sync-btn:hover{background:rgba(255,255,255,.12)}
+.sync-btn:disabled{opacity:.6;cursor:default}
+.sync-btn.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- 3단 ---------- */
+.app{flex:1;display:flex;min-height:0}
+.side{width:232px;flex:none;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.side-scroll{flex:1;overflow:auto;padding:10px 8px}
+.sec-title{font-size:11.5px;font-weight:600;color:var(--muted);padding:12px 10px 4px;letter-spacing:.02em}
+.sec-title:first-child{padding-top:2px}
+.nav{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:6px 10px;border-radius:6px;color:var(--sub);position:relative}
+.nav:hover{background:var(--hover)}
+.nav.on{background:var(--sel);color:var(--text);font-weight:600}
+.nav.on::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:2px;background:var(--accent)}
+.nav .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav .cnt{font-size:11.5px;color:var(--muted);font-weight:400}
+.nav .chev{transition:transform .15s;color:var(--muted);width:14px;height:14px}
+.nav .chev.open{transform:rotate(90deg)}
+.nav.month{padding-left:34px}
+.side-foot{border-top:1px solid var(--line);padding:10px 12px;font-size:11.5px;color:var(--muted)}
+.side-foot b{color:var(--sub);font-weight:600}
+details.adv{margin:6px 2px 0}
+details.adv summary{list-style:none;cursor:pointer;font-size:11.5px;font-weight:600;color:var(--muted);padding:8px 8px 4px;display:flex;align-items:center;gap:6px}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv[open] summary .chev{transform:rotate(90deg)}
+.adv-body{padding:4px 8px 8px;display:flex;flex-direction:column;gap:6px}
+.adv-body label{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:6px}
+.adv-body input[type=date]{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:12px}
+
+/* 목록 */
+.list{width:400px;min-width:300px;flex:none;background:var(--panel);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.list-head{padding:12px 16px 8px;border-bottom:1px solid var(--line-soft)}
+.list-title{display:flex;align-items:baseline;gap:8px}
+.list-title h2{font-size:17px;margin:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-title .total{color:var(--muted);font-size:12px;white-space:nowrap}
+.list-tools{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.tbtn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:13px;border:1px solid var(--line);color:var(--sub);font-size:12px;background:var(--panel)}
+.tbtn:hover{background:var(--hover)}
+.tbtn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.tbtn svg.i{width:13px;height:13px}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 4px 0 9px;border-radius:12px;background:var(--chip);font-size:12px;color:var(--sub);max-width:100%}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip button{display:flex;padding:2px;border-radius:50%;color:var(--muted)}
+.chip button:hover{background:var(--line)}
+.chip svg.i{width:12px;height:12px}
+.rows{flex:1;overflow:auto}
+.group{position:sticky;top:0;z-index:1;background:var(--panel);padding:10px 16px 4px;font-size:12px;font-weight:600;color:var(--accent);border-bottom:1px solid var(--line-soft)}
+.row{display:flex;gap:11px;padding:10px 14px 10px 13px;border-bottom:1px solid var(--line-soft);cursor:pointer;border-left:3px solid transparent}
+.row:hover{background:var(--hover)}
+.row.sel{background:var(--sel);border-left-color:var(--accent)}
+.av{flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;user-select:none}
+.row .av{width:34px;height:34px;font-size:13.5px;margin-top:2px}
+.row .body{flex:1;min-width:0}
+.row .l1{display:flex;align-items:center;gap:6px}
+.row .name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .date{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.row .l2{display:flex;align-items:center;gap:6px;margin-top:1px}
+.row .subj{flex:1;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.sel .subj{color:var(--text)}
+.row .l2 svg.i{width:13px;height:13px;color:var(--muted)}
+.row .snip{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.tag{font-size:10.5px;padding:0 6px;border-radius:3px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.loading-more,.list-empty{padding:28px 16px;text-align:center;color:var(--muted)}
+
+.splitter{width:5px;margin-left:-3px;cursor:col-resize;flex:none;position:relative;z-index:2}
+.splitter:hover,.splitter.drag{background:var(--accent);opacity:.35}
+
+/* 읽기 창 */
+.reader{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.empty-reader{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:10px;padding:24px;text-align:center}
+.empty-reader svg.i{width:56px;height:56px;stroke-width:1.2;opacity:.5}
+.empty-reader .tips{font-size:12.5px;line-height:1.9;margin-top:6px}
+.empty-reader code{background:var(--chip);padding:1px 6px;border-radius:4px;color:var(--sub)}
+.rhead{background:var(--panel);margin:12px 12px 0;border-radius:var(--radius) var(--radius) 0 0;padding:18px 22px 12px;box-shadow:var(--shadow)}
+.rhead h1{font-size:19px;font-weight:600;margin:0 0 14px;line-height:1.4;word-break:break-word}
+.from-row{display:flex;gap:12px;align-items:flex-start}
+.from-row .av{width:42px;height:42px;font-size:16px}
+.from-info{flex:1;min-width:0}
+.from-name{font-weight:600;font-size:14.5px}
+.from-name .mail{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:6px}
+.from-team{font-size:12px;color:var(--muted)}
+.rcpt{font-size:12.5px;color:var(--sub);margin-top:4px;word-break:break-word}
+.rcpt b{font-weight:600;color:var(--muted);margin-right:4px}
+.rcpt .more{color:var(--accent);margin-left:4px;font-size:12px}
+.rcpt .more:hover{text-decoration:underline}
+.rdate{text-align:right;font-size:12px;color:var(--muted);white-space:nowrap}
+.rdate .tag{display:inline-block;margin-top:4px}
+.atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.att{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:6px;padding:6px 10px 6px 6px;max-width:280px;text-decoration:none;color:var(--text);background:var(--panel)}
+.att:hover{border-color:var(--accent);background:var(--hover)}
+.att .ext{width:32px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex:none}
+.att .meta{min-width:0}
+.att .fn{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att .sz{font-size:11px;color:var(--muted)}
+.rtools{display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--line-soft)}
+.rbtn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:5px;color:var(--sub);font-size:12.5px;text-decoration:none}
+.rbtn:hover{background:var(--hover);color:var(--text)}
+.rtools .src{flex:1;min-width:0;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.rbody{flex:1;margin:0 12px 12px;background:#fff;border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);overflow:hidden;display:flex;border-top:1px solid var(--line-soft)}
+.rbody iframe{flex:1;border:0;width:100%;background:#fff}
+.back-btn{display:none}
+.icon-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:6px;color:#fff}
+.icon-btn:hover{background:rgba(255,255,255,.14)}
+.icon-btn svg.i{width:18px;height:18px}
+.modal-bg{position:fixed;inset:0;background:rgba(15,20,25,.45);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+.modal-bg.show{display:flex}
+.modal{background:var(--panel);border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.25);width:560px;max-width:100%;padding:24px 26px 20px}
+.modal h3{margin:0 0 6px;font-size:18px;display:flex;align-items:center;gap:8px}
+.modal h3 svg.i{width:22px;height:22px;color:var(--accent)}
+.modal p{margin:0 0 14px;color:var(--sub);font-size:13px;line-height:1.7}
+.modal .ex{background:var(--chip);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--sub);margin-bottom:16px;line-height:1.7;font-family:Consolas,"Malgun Gothic",monospace}
+.path-row{display:flex;gap:6px}
+.path-row input{flex:1;min-width:0;height:36px;border:1px solid var(--line);border-radius:6px;padding:0 10px;background:var(--panel)}
+.path-row input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--text);white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn:disabled{opacity:.6;cursor:default}
+.modal .msg{min-height:20px;margin:10px 0 0;font-size:12.5px}
+.modal .msg.err{color:#c4302b}
+.modal .msg.ok{color:#1d7a43}
+.modal .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.imp-files{border:1px solid var(--line);border-radius:6px;max-height:190px;overflow:auto;font-size:12.5px}
+.imp-files .row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line)}
+.imp-files .row:last-child{border-bottom:0}
+.imp-files .row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-files .row .sz{color:var(--sub);white-space:nowrap}
+.imp-files .row .st{white-space:nowrap;font-size:12px;color:var(--sub)}
+.imp-files .row .st.ok{color:#1d7a43}.imp-files .row .st.err{color:#c4302b}
+.imp-files .tag{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--chip);color:var(--sub);white-space:nowrap}
+.imp-empty{padding:18px;text-align:center;color:var(--sub)}
+.imp-month{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);white-space:nowrap}
+.imp-month input{width:84px;height:36px;border:1px solid var(--line);border-radius:6px;padding:0 8px;background:var(--panel);color:var(--text);font-size:14px;text-align:center}
+.imp-month input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.imp-dest{margin-top:8px;font-size:12px;color:var(--sub);font-family:Consolas,"Malgun Gothic",monospace;word-break:break-all}
+.path-row .spacer{flex:1}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1b1f24;color:#fff;padding:8px 16px;border-radius:6px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+.toast.show{opacity:.92}
+
+/* ---------- 좁은 화면 ---------- */
+@media (max-width: 1100px){ .list{width:340px} }
+@media (max-width: 900px){
+  .brand{width:auto}.brand span{display:none}
+  .menu-btn{display:flex}
+  .side{position:fixed;top:52px;bottom:0;left:0;z-index:20;transform:translateX(-100%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.15)}
+  body.side-open .side{transform:none}
+  .sync-btn span{display:none}
+}
+@media (max-width: 700px){
+  .topbar{gap:8px;padding:0 10px}
+  .list{width:100%!important;border-right:0}
+  .splitter{display:none}
+  .reader{display:none}
+  body.reading .list{display:none}
+  body.reading .reader{display:flex}
+  .back-btn{display:inline-flex}
+  .rhead,.rbody{margin-left:0;margin-right:0;border-radius:0}
+  .rhead{margin-top:0}
+  .rbody{margin-bottom:0}
+  .searchbox select{display:none}
+  .from-row{flex-wrap:wrap}
+  .rdate{order:-1;width:100%;text-align:left}
+  .rdate br{display:none}
+  .rdate .tag{margin:0 0 0 6px}
+}
+#q::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menuBtn" title="메뉴"></button>
+  <div class="brand"><span id="brandIcon"></span><span>메일 백업</span></div>
+  <form class="searchbox" id="searchForm" autocomplete="off">
+    <span id="searchIcon"></span>
+    <input id="q" type="search" placeholder="메일 검색  —  여러 단어 · &quot;정확한 문구&quot; · -제외어" autofocus>
+    <button type="button" class="clear" id="clearQ" title="지우기"></button>
+    <select id="field" title="검색 범위">
+      <option value="all">전체</option>
+      <option value="subject">제목</option>
+      <option value="sender">보낸사람</option>
+      <option value="recipients">받는사람/참조</option>
+      <option value="body">본문</option>
+      <option value="attachments">첨부파일명</option>
+    </select>
+  </form>
+  <div class="spacer"></div>
+  <button class="sync-btn" id="importBtn" title="새로 받은 백업 zip 을 골라 백업 폴더로 가져옵니다"></button>
+  <button class="sync-btn" id="syncBtn" title="백업 폴더에 새로 넣은 zip 을 반영합니다"></button>
+  <button class="icon-btn" id="setupBtn" title="메일 백업 폴더 설정"></button>
+</header>
+
+<div class="modal-bg" id="setupBg">
+  <div class="modal" role="dialog" aria-labelledby="setupTitle">
+    <h3 id="setupTitle"><span id="setupIcon"></span>메일 백업 폴더 선택</h3>
+    <p>매달 받는 메일 백업(zip)을 모아 두는 폴더를 골라 주세요.<br>
+      하위 폴더까지 모두 읽으며, <b>압축은 풀지 않고</b> 이 PC 안에서만 색인합니다.</p>
+    <div class="ex">예) D:\메일백업\<br>&nbsp;&nbsp;├ 202609 메일\받은메일함_1.zip<br>&nbsp;&nbsp;└ 202610 메일\보낸메일함.zip</div>
+    <div class="path-row">
+      <input id="rootInput" placeholder="폴더 경로를 붙여넣거나 [폴더 찾기]를 누르세요" spellcheck="false">
+      <button class="btn" id="pickBtn" type="button">폴더 찾기…</button>
+    </div>
+    <div class="msg" id="setupMsg"></div>
+    <div class="foot">
+      <button class="btn" id="setupCancel" type="button">닫기</button>
+      <button class="btn primary" id="setupSave" type="button">저장하고 시작</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="impBg">
+  <div class="modal" role="dialog" aria-labelledby="impTitle">
+    <h3 id="impTitle"><span id="impIcon"></span>백업 가져오기</h3>
+    <p>새로 받은 메일 백업 zip 을 고르면 백업 폴더의 <b>월 폴더로 복사</b>한 뒤 바로 반영합니다.<br>
+      고른 원본 파일은 그대로 둡니다.</p>
+    <div class="imp-files" id="impFiles"><div class="imp-empty">아직 고른 파일이 없습니다</div></div>
+    <div class="path-row" style="margin-top:10px">
+      <button class="btn" id="impPick" type="button">파일 고르기…</button>
+      <div class="spacer"></div>
+      <label class="imp-month">백업 연월 <input id="impMonth" maxlength="6" inputmode="numeric" placeholder="202610"></label>
+    </div>
+    <div class="imp-dest" id="impDest"></div>
+    <div class="msg" id="impMsg"></div>
+    <div class="foot">
+      <button class="btn" id="impCancel" type="button">닫기</button>
+      <button class="btn primary" id="impGo" type="button" disabled>가져와서 반영</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <nav class="side">
+    <div class="side-scroll" id="side"></div>
+    <div class="side-foot" id="sideFoot">불러오는 중…</div>
+  </nav>
+
+  <section class="list" id="listPane">
+    <div class="list-head">
+      <div class="list-title"><h2 id="listTitle">전체 메일</h2><span class="total" id="listTotal"></span></div>
+      <div class="list-tools" id="listTools"></div>
+    </div>
+    <div class="rows" id="rows"></div>
+  </section>
+  <div class="splitter" id="splitter"></div>
+
+  <section class="reader" id="reader"></section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 유틸 ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const P = {
+  mail:'<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
+  inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  globe:'<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  clip:'<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  refresh:'<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  chev:'<polyline points="9 18 15 12 9 6"/>',
+  menu:'<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  back:'<polyline points="15 18 9 12 15 6"/>',
+  x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  sort:'<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
+  sortup:'<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+};
+const ic = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24">${P[n]}</svg>`;
+const BOX_ICON = {'받은메일함':'inbox','보낸메일함':'send','외부메일함':'globe'};
+const BOX_ORDER = ['받은메일함','보낸메일함','외부메일함','구분없음'];
+const WEEK = ['일','월','화','수','목','금','토'];
+
+function parsePerson(s){
+  s = (s||'').trim();
+  const email = (s.match(/<([^>]+)>/)||[])[1] || '';
+  let raw = s.replace(/<[^>]*>/g,'').trim() || email;
+  const segs = raw.split('/').map(x=>x.trim()).filter(Boolean);
+  let name = (segs[0]||raw).replace(/\(.*?\)/g,'').trim() || segs[0] || raw;
+  const eng = ((segs[0]||'').match(/\(([^)]+)\)/)||[])[1] || '';
+  const team = segs.slice(1).filter(x => x !== name).join(' · ');
+  return {name: name || email || '(알 수 없음)', email, team, eng, full: s};
+}
+function splitPeople(s){
+  if(!s) return [];
+  return s.split(/(?<=>)\s*,\s*/).map(x=>x.trim()).filter(Boolean);
+}
+function avatar(name, cls='av'){
+  let h = 0; for(const c of name) h = (h*31 + c.charCodeAt(0)) >>> 0;
+  const hue = h % 360;
+  const ch = /[가-힣]/.test(name[0]) ? name[0] : name.split(/[\s,.]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return `<div class="${cls}" style="background:hsl(${hue} 45% 48%)">${esc(ch || '?')}</div>`;
+}
+function hl(text, terms){
+  let s = esc(text);
+  if(!terms || !terms.length) return s;
+  const re = new RegExp('(' + terms.map(t => esc(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).sort((a,b)=>b.length-a.length).join('|') + ')', 'gi');
+  return s.replace(re, '<mark>$1</mark>');
+}
+function fmtSize(n){ return n>1048576 ? (n/1048576).toFixed(1)+' MB' : n>1024 ? Math.round(n/1024)+' KB' : n+' B'; }
+function dt(s){ const m = (s||'').match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/); return m ? new Date(+m[1], m[2]-1, +m[3], +m[4], +m[5]) : null; }
+function shortDate(s){
+  const d = dt(s); if(!d) return s||'';
+  const now = new Date(), hm = s.slice(11,16);
+  if(d.toDateString() === now.toDateString()) return hm;
+  if(d.getFullYear() === now.getFullYear()) return `${d.getMonth()+1}/${d.getDate()} (${WEEK[d.getDay()]})`;
+  return `${String(d.getFullYear()).slice(2)}/${d.getMonth()+1}/${d.getDate()}`;
+}
+function longDate(s){
+  const d = dt(s); if(!d) return s||'';
+  const h = d.getHours(), ap = h<12 ? '오전' : '오후';
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${WEEK[d.getDay()]}) ${ap} ${h%12||12}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+const ymLabel = ym => ym.length===4 ? `${ym}년` : `${ym.slice(0,4)}년 ${+ym.slice(5,7)}월`;
+const EXT = {xls:'#1d7a43',xlsx:'#1d7a43',csv:'#1d7a43',doc:'#2b5fb4',docx:'#2b5fb4',hwp:'#2b8fd6',ppt:'#c4502a',pptx:'#c4502a',
+  pdf:'#c4302b',zip:'#6b7280','7z':'#6b7280',png:'#8b5cf6',jpg:'#8b5cf6',jpeg:'#8b5cf6',gif:'#8b5cf6',txt:'#64748b',sql:'#0f766e',log:'#64748b'};
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),1800); }
+const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v);}catch(e){return d} },
+                set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} } };
+
+/* ================= 상태 ================= */
+const S = { box:'', ym:'', sort:'desc', attach:false, from:'', to:'',
+  items:[], total:0, page:0, terms:[], sel:-1, loading:false, reqId:0,
+  facets:null, openYears: new Set(store.get('openYears', [])) };
+
+/* ================= 사이드바 ================= */
+function renderSide(){
+  const f = S.facets; if(!f) return;
+  let h = `<div class="sec-title">메일함</div>`;
+  h += navBtn('box','', ic('mail'), '전체 메일', f.unique);
+  const boxes = Object.keys(f.box_counts).sort((a,b)=>(BOX_ORDER.indexOf(a)+99)%99 - (BOX_ORDER.indexOf(b)+99)%99 || a.localeCompare(b));
+  boxes.forEach(b => h += navBtn('box', b, ic(BOX_ICON[b]||'folder'), b, f.box_counts[b]));
+
+  h += `<div class="sec-title">기간 <span style="font-weight:400">(메일 날짜 기준)</span></div>`;
+  h += navBtn('ym','', ic('cal'), '전체 기간', null);
+  const years = {};
+  Object.entries(f.ym_counts).forEach(([ym,c]) => { if(!ym) return; const y=ym.slice(0,4); (years[y] ||= {total:0, months:[]}); years[y].total+=c; years[y].months.push([ym,c]); });
+  Object.keys(years).sort().reverse().forEach((y,i) => {
+    if(!store.get('openYearsInit', false) && i===0){ S.openYears.add(y); store.set('openYears', [...S.openYears]); }
+    const open = S.openYears.has(y);
+    h += `<button class="nav${S.ym===y?' on':''}" data-k="ym" data-v="${y}">
+      <span data-toggle="${y}" style="display:flex">${ic('chev','chev'+(open?' open':''))}</span>
+      <span class="lbl">${y}년</span><span class="cnt">${years[y].total.toLocaleString()}</span></button>`;
+    if(open) years[y].months.sort((a,b)=>b[0].localeCompare(a[0])).forEach(([ym,c]) =>
+      h += `<button class="nav month${S.ym===ym?' on':''}" data-k="ym" data-v="${ym}"><span class="lbl">${+ym.slice(5,7)}월</span><span class="cnt">${c.toLocaleString()}</span></button>`);
+  });
+  store.set('openYearsInit', true);
+
+  h += `<details class="adv"${S.from||S.to?' open':''}><summary>${ic('chev','chev')} 날짜 직접 지정</summary>
+    <div class="adv-body">
+      <label>부터 <input type="date" id="from" value="${S.from}"></label>
+      <label>까지 <input type="date" id="to" value="${S.to}"></label>
+    </div></details>`;
+  $('#side').innerHTML = h;
+  $('#from').onchange = e => { S.from = e.target.value; search(); };
+  $('#to').onchange = e => { S.to = e.target.value; search(); };
+}
+function navBtn(k, v, icon, label, cnt){
+  const on = S[k] === v;
+  return `<button class="nav${on?' on':''}" data-k="${k}" data-v="${esc(v)}">${icon}<span class="lbl">${esc(label)}</span>${cnt!=null?`<span class="cnt">${cnt.toLocaleString()}</span>`:''}</button>`;
+}
+$('#side').addEventListener('click', e => {
+  const tg = e.target.closest('[data-toggle]');
+  if(tg){ const y = tg.dataset.toggle; S.openYears.has(y) ? S.openYears.delete(y) : S.openYears.add(y);
+    store.set('openYears', [...S.openYears]); renderSide(); e.stopPropagation(); return; }
+  const b = e.target.closest('.nav'); if(!b) return;
+  S[b.dataset.k] = b.dataset.v;
+  if(b.dataset.k==='ym' && b.dataset.v){ S.openYears.add(b.dataset.v.slice(0,4)); store.set('openYears',[...S.openYears]); }
+  document.body.classList.remove('side-open');
+  renderSide(); search();
+});
+
+/* ================= 목록 ================= */
+function queryParams(page){
+  return new URLSearchParams({q:$('#q').value.trim(), field:$('#field').value, box:S.box, ym:S.ym,
+    from:S.from, to:S.to, attach:S.attach?'1':'', sort:S.sort, page});
+}
+async function search(append=false){
+  if(append && (S.loading || S.items.length >= S.total)) return;
+  const id = ++S.reqId; S.loading = true;
+  const page = append ? S.page+1 : 0;
+  if(!append) renderHead();
+  try{
+    const r = await fetch('/api/search?' + queryParams(page)).then(r=>r.json());
+    if(id !== S.reqId) return;
+    if(r.error) throw new Error(r.error);
+    S.page = page; S.total = r.total; S.terms = r.terms;
+    S.items = append ? S.items.concat(r.items) : r.items;
+    if(!append){ S.sel = -1; $('#rows').scrollTop = 0; showEmptyReader(); }
+    renderHead(); renderRows();
+    if(!append && S.openFirst && S.items.length){ S.openFirst = false; select(0); }
+  }catch(e){ $('#rows').innerHTML = `<div class="list-empty">오류: ${esc(e.message)}</div>`; }
+  finally{ if(id === S.reqId) S.loading = false; }
+}
+function renderHead(){
+  const parts = [S.box || '전체 메일']; if(S.ym) parts.push(ymLabel(S.ym));
+  $('#listTitle').textContent = parts.join(' · ');
+  $('#listTotal').textContent = S.total ? `${S.total.toLocaleString()}통` : '';
+  const q = $('#q').value.trim();
+  let t = `<button class="tbtn" id="sortBtn" title="정렬 바꾸기">${ic(S.sort==='desc'?'sort':'sortup')} ${S.sort==='desc'?'최신순':'오래된순'}</button>
+    <button class="tbtn${S.attach?' on':''}" id="attBtn">${ic('clip')} 첨부 있음</button>`;
+  if(q) t += chip(`검색: ${q}${$('#field').value!=='all' ? ' ('+$('#field').selectedOptions[0].text+')' : ''}`, 'q');
+  if(S.from||S.to) t += chip(`${S.from||'처음'} ~ ${S.to||'끝'}`, 'date');
+  $('#listTools').innerHTML = t;
+  $('#sortBtn').onclick = () => { S.sort = S.sort==='desc'?'asc':'desc'; search(); };
+  $('#attBtn').onclick = () => { S.attach = !S.attach; search(); };
+}
+const chip = (label, key) => `<span class="chip"><span>${esc(label)}</span><button data-clear="${key}" title="해제">${ic('x')}</button></span>`;
+$('#listTools').addEventListener('click', e => {
+  const b = e.target.closest('[data-clear]'); if(!b) return;
+  if(b.dataset.clear==='q'){ $('#q').value=''; syncClear(); }
+  if(b.dataset.clear==='date'){ S.from=S.to=''; renderSide(); }
+  search();
+});
+function renderRows(){
+  const R = $('#rows');
+  if(!S.items.length){ R.innerHTML = `<div class="list-empty">조건에 맞는 메일이 없습니다.</div>`; return; }
+  let h = '', lastGroup = '';
+  S.items.forEach((m,i) => {
+    const g = (m.date||'').slice(0,7);
+    if(g !== lastGroup){ h += `<div class="group">${g ? ymLabel(g) : '날짜 없음'}</div>`; lastGroup = g; }
+    const p = parsePerson(m.box==='보낸메일함' ? (m.recipients.split(/(?<=>)\s*,/)[0]||m.sender) : m.sender);
+    const who = m.box==='보낸메일함' ? '받는사람: ' + p.name : p.name;
+    h += `<div class="row${i===S.sel?' sel':''}" data-i="${i}" title="${esc(m.sender)}">
+      ${avatar(p.name)}
+      <div class="body">
+        <div class="l1"><span class="name">${hl(who, S.terms)}</span><span class="date">${esc(shortDate(m.date))}</span></div>
+        <div class="l2"><span class="subj">${hl(m.subject||'(제목 없음)', S.terms)}</span>${m.attach_count?ic('clip'):''}</div>
+        <div class="snip">${hl(m.snippet||'', S.terms)}</div>
+      </div></div>`;
+  });
+  if(S.items.length < S.total) h += `<div class="loading-more">스크롤하면 더 불러옵니다 (${S.items.length.toLocaleString()} / ${S.total.toLocaleString()})</div>`;
+  R.innerHTML = h;
+}
+$('#rows').addEventListener('click', e => { const r = e.target.closest('.row'); if(r) select(+r.dataset.i); });
+$('#rows').addEventListener('scroll', e => { const el = e.target; if(el.scrollTop + el.clientHeight > el.scrollHeight - 300) search(true); });
+
+/* ================= 읽기 창 ================= */
+function showEmptyReader(){
+  document.body.classList.remove('reading');
+  $('#reader').innerHTML = `<div class="empty-reader">${ic('mail')}
+    <div style="font-size:15px;color:var(--sub)">읽을 메일을 선택하세요</div>
+    <div class="tips">여러 단어 → 모두 포함 &nbsp;<code>DB 테이블스페이스</code><br>
+      정확한 문구 &nbsp;<code>"PM 작업"</code> &nbsp;·&nbsp; 제외 &nbsp;<code>배포 -공지</code><br>
+      <code>/</code> 검색창 &nbsp;·&nbsp; <code>↑</code><code>↓</code> 메일 이동</div></div>`;
+}
+async function select(i){
+  if(i<0 || i>=S.items.length) return;
+  S.sel = i;
+  document.querySelectorAll('.row').forEach(el => el.classList.toggle('sel', +el.dataset.i===i));
+  const rowEl = document.querySelector(`.row[data-i="${i}"]`); rowEl && rowEl.scrollIntoView({block:'nearest'});
+  document.body.classList.add('reading');
+  const id = S.items[i].id;
+  const m = await fetch('/api/mail/'+id).then(r=>r.json());
+  if(S.sel !== i) return;
+  if(m.error){ $('#reader').innerHTML = `<div class="empty-reader">${esc(m.error)}</div>`; return; }
+  const p = parsePerson(m.sender);
+  const to = splitPeople(m.recipients), cc = splitPeople(m.cc);
+  const names = arr => arr.map(x => parsePerson(x).name);
+  const rc = (label, arr, key) => {
+    if(!arr.length) return '';
+    const n = names(arr), short = n.slice(0,3).map(x=>hl(x,S.terms)).join(', ');
+    const more = n.length>3 ? `<button class="more" data-expand="${key}">외 ${n.length-3}명</button>` : '';
+    return `<div class="rcpt" data-full="${key}"><b>${label}</b>${short}${more}</div>`;
+  };
+  const atts = m.attachments.map(a => {
+    const ext = (a.name.split('.').pop()||'').toLowerCase();
+    return `<a class="att" href="/api/mail/${id}/part/${a.index}" title="${esc(a.name)} 저장">
+      <span class="ext" style="background:${EXT[ext]||'#64748b'}">${esc(ext.slice(0,4).toUpperCase()||'FILE')}</span>
+      <span class="meta"><div class="fn">${hl(a.name,S.terms)}</div><div class="sz">${fmtSize(a.size)}</div></span></a>`;
+  }).join('');
+  $('#reader').innerHTML = `
+    <div class="rhead">
+      <button class="rbtn back-btn" id="backBtn" style="margin:-6px 0 8px -10px">${ic('back')} 목록</button>
+      <h1>${hl(m.subject||'(제목 없음)', S.terms)}</h1>
+      <div class="from-row">
+        ${avatar(p.name)}
+        <div class="from-info">
+          <div class="from-name">${hl(p.name,S.terms)}${p.eng?` <span class="mail">${esc(p.eng)}</span>`:''}<span class="mail">${esc(p.email)}</span></div>
+          ${p.team?`<div class="from-team">${esc(p.team)}</div>`:''}
+          ${rc('받는사람', to, 'to')}${rc('참조', cc, 'cc')}
+        </div>
+        <div class="rdate">${esc(longDate(m.date))}<br><span class="tag">${esc(m.box)}</span></div>
+      </div>
+      ${atts?`<div class="atts">${atts}</div>`:''}
+      <div class="rtools">
+        <a class="rbtn" href="/api/mail/${id}/eml" title="원본 메일 파일 저장 → 더블클릭하면 Outlook 에서 열림">${ic('download')} EML 저장</a>
+        <button class="rbtn" id="copySrc" title="백업 안의 위치 복사">${ic('copy')} 위치 복사</button>
+        <span class="src" title="${esc(m.source)}">${esc(m.source)}</span>
+      </div>
+    </div>
+    <div class="rbody"><iframe sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      src="/api/mail/${id}/body?hl=${encodeURIComponent($('#q').value)}"></iframe></div>`;
+  const R = $('#reader');
+  R.querySelectorAll('[data-expand]').forEach(b => b.onclick = () => {
+    const key = b.dataset.expand, arr = key==='to' ? to : cc;
+    b.parentElement.innerHTML = `<b>${key==='to'?'받는사람':'참조'}</b>` + arr.map(x => hl(x, S.terms)).join(', ');
+  });
+  $('#backBtn').onclick = () => document.body.classList.remove('reading');
+  $('#copySrc').onclick = async () => { try{ await navigator.clipboard.writeText(m.source); toast('위치를 복사했습니다'); }catch(e){ toast('복사하지 못했습니다'); } };
+  const fr = R.querySelector('iframe');
+  fr.onload = () => { try{ const mk = fr.contentDocument.querySelector('mark'); mk && mk.scrollIntoView({block:'center'}); }catch(e){} };
+}
+
+/* ================= 검색창 · 키보드 ================= */
+function syncClear(){ $('#searchForm').classList.toggle('has', !!$('#q').value); }
+$('#searchForm').addEventListener('submit', e => { e.preventDefault(); search(); });
+$('#q').addEventListener('input', syncClear);
+$('#q').addEventListener('search', () => { if(!$('#q').value) search(); });
+$('#clearQ').onclick = () => { $('#q').value=''; syncClear(); search(); $('#q').focus(); };
+$('#field').onchange = () => { if($('#q').value.trim()) search(); };
+document.addEventListener('keydown', e => {
+  const a = document.activeElement, typing = a && (a.tagName==='INPUT' || a.tagName==='SELECT') && a.id!=='q';
+  if(e.key==='/' && a.id!=='q' && !typing){ e.preventDefault(); $('#q').focus(); $('#q').select(); return; }
+  if(typing) return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); select(Math.min(S.sel+1, S.items.length-1)); if(S.sel >= S.items.length-5) search(true); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); select(Math.max(S.sel-1, 0)); }
+  else if(e.key==='Escape' && a.id==='q' && a.value){ a.value=''; syncClear(); search(); }
+});
+$('#menuBtn').innerHTML = ic('menu'); $('#menuBtn').onclick = () => document.body.classList.toggle('side-open');
+$('#brandIcon').outerHTML = ic('mail'); $('#searchIcon').outerHTML = ic('search'); $('#clearQ').innerHTML = ic('x');
+
+/* ================= 목록 폭 조절 ================= */
+(() => {
+  const sp = $('#splitter'), L = $('#listPane'); const w = store.get('listW', 0); if(w) L.style.width = w + 'px';
+  sp.addEventListener('mousedown', e => {
+    e.preventDefault(); sp.classList.add('drag'); const x0 = e.clientX, w0 = L.offsetWidth;
+    $('#reader').style.pointerEvents = 'none';
+    const mv = ev => { L.style.width = Math.max(300, Math.min(window.innerWidth*0.6, w0 + ev.clientX - x0)) + 'px'; };
+    const up = () => { sp.classList.remove('drag'); $('#reader').style.pointerEvents=''; store.set('listW', L.offsetWidth);
+      document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+})();
+
+/* ================= 백업 폴더 설정 ================= */
+const post = (url, body) => fetch(url, {method:'POST', headers:{'X-Requested-With':'mailsearch','Content-Type':'application/json'},
+  body: JSON.stringify(body||{})}).then(r=>r.json());
+let rootNow = '', rootOk = true, forceEmpty = false;
+function setupMsg(t, cls=''){ const m=$('#setupMsg'); m.textContent=t; m.className='msg '+cls; }
+function openSetup(required){
+  $('#rootInput').value = rootNow || '';
+  $('#setupCancel').style.display = required ? 'none' : '';
+  setupMsg(required ? '' : (rootNow ? '현재 폴더: ' + rootNow : ''));
+  forceEmpty = false; $('#setupSave').textContent = '저장하고 시작';
+  $('#setupBg').classList.add('show'); setTimeout(()=>$('#rootInput').focus(), 50);
+}
+const closeSetup = () => $('#setupBg').classList.remove('show');
+$('#setupBtn').innerHTML = ic('gear'); $('#setupBtn').onclick = () => openSetup(!rootOk);
+$('#setupIcon').outerHTML = ic('folder');
+$('#setupCancel').onclick = closeSetup;
+$('#rootInput').addEventListener('input', () => { forceEmpty=false; $('#setupSave').textContent='저장하고 시작'; });
+$('#rootInput').addEventListener('keydown', e => { if(e.key==='Enter') $('#setupSave').click(); });
+$('#pickBtn').onclick = async () => {
+  const b = $('#pickBtn'); b.disabled = true; setupMsg('폴더 선택 창을 열었습니다. (작업표시줄에 숨어 있을 수 있어요)');
+  try{ const r = await post('/api/pick-folder');
+    if(r.ok && r.path){ $('#rootInput').value = r.path; setupMsg(''); forceEmpty=false; $('#setupSave').textContent='저장하고 시작'; }
+    else if(r.ok) setupMsg(''); else setupMsg(r.error, 'err');
+  }catch(e){ setupMsg('서버 연결 끊김', 'err'); }
+  b.disabled = false;
+};
+$('#setupSave').onclick = async () => {
+  const p = $('#rootInput').value.trim();
+  if(!p){ setupMsg('폴더 경로를 입력해 주세요.', 'err'); return; }
+  const b = $('#setupSave'); b.disabled = true;
+  try{
+    const r = await post('/api/config', {mail_root:p, force:forceEmpty});
+    if(r.ok){
+      setupMsg(`zip ${r.zips}개, eml ${r.emls}개를 찾았습니다. 색인을 시작합니다…`, 'ok');
+      rootNow = r.path; rootOk = true; S.box=''; S.ym='';
+      setTimeout(() => { closeSetup(); first = true; poll(); }, 900);
+    } else if(r.empty){
+      setupMsg(r.error + ' 그래도 이 폴더를 쓰려면 한 번 더 누르세요.', 'err');
+      forceEmpty = true; b.textContent = '그래도 사용';
+    } else setupMsg(r.error, 'err');
+  }catch(e){ setupMsg('서버 연결 끊김', 'err'); }
+  b.disabled = false;
+};
+document.addEventListener('keydown', e => { if(e.key==='Escape' && $('#setupBg').classList.contains('show') && rootOk) closeSetup(); }, true);
+
+/* ================= 백업 가져오기 ================= */
+let IMP = {files:[], done:false};
+function impMsg(t, cls=''){ const m=$('#impMsg'); m.textContent=t; m.className='msg '+cls; }
+function impRender(res){
+  const ok = IMP.files.filter(f=>!f.error);
+  $('#impFiles').innerHTML = IMP.files.length ? IMP.files.map(f => {
+    const r = res && res.find(x=>x.name===f.name);
+    const st = r ? (r.state==='copied' ? `<span class="st ok">복사함</span>` : `<span class="st ${r.state==='error'?'err':''}">${esc(r.msg||'')}</span>`)
+                 : f.error ? `<span class="st err">${esc(f.error)}</span>` : f.inside ? `<span class="st">이미 백업 폴더 안</span>` : '';
+    return `<div class="row">${ic(f.name.toLowerCase().endsWith('.zip')?'clip':'mail')}<span class="nm" title="${esc(f.path)}">${esc(f.name)}</span>
+      ${f.box && f.box!=='구분없음' ? `<span class="tag">${esc(f.box)}</span>` : ''}<span class="sz">${f.size!=null?fmtSize(f.size):''}</span>${st}</div>`;
+  }).join('') : '<div class="imp-empty">아직 고른 파일이 없습니다</div>';
+  const m = $('#impMonth').value.trim();
+  $('#impDest').textContent = (rootNow && /^\d{6}$/.test(m)) ? '→ ' + rootNow.replace(/[\\\/]+$/,'') + '\\' + m + ' 메일\\' : '';
+  $('#impGo').disabled = IMP.done || !ok.length || !/^\d{6}$/.test(m);
+}
+function openImport(){
+  if(!rootOk){ openSetup(true); return; }
+  IMP = {files:[], done:false}; $('#impMonth').value = ''; impMsg(''); $('#impGo').textContent = '가져와서 반영';
+  impRender(); $('#impBg').classList.add('show');
+}
+const closeImport = () => $('#impBg').classList.remove('show');
+$('#importBtn').innerHTML = ic('download') + '<span>백업 가져오기</span>';
+$('#importBtn').onclick = openImport;
+$('#impIcon').outerHTML = ic('download');
+$('#impCancel').onclick = closeImport;
+$('#impMonth').addEventListener('input', () => { $('#impMonth').value = $('#impMonth').value.replace(/\D/g,''); impRender(); });
+$('#impPick').onclick = async () => {
+  const b = $('#impPick'); b.disabled = true; impMsg('파일 선택 창을 열었습니다. (작업표시줄에 숨어 있을 수 있어요)');
+  try{ const r = await post('/api/pick-files');
+    if(!r.ok){ impMsg(r.error, 'err'); }
+    else if(r.files.length){
+      IMP = {files:r.files, done:false}; $('#impGo').textContent = '가져와서 반영';
+      $('#impMonth').value = r.month; impRender();
+      const n = Object.values(r.month_counts||{}).reduce((a,b)=>a+b,0);
+      impMsg(n ? `메일 날짜를 보고 ${r.month.slice(0,4)}년 ${+r.month.slice(4)}월 백업으로 판단했습니다. 다르면 고쳐 주세요.`
+               : '메일 날짜를 확인하지 못해 지난달로 넣었습니다. 맞는지 확인해 주세요.');
+    } else impMsg('');
+  }catch(e){ impMsg('서버 연결 끊김', 'err'); }
+  b.disabled = false;
+};
+$('#impGo').onclick = async () => {
+  const b = $('#impGo'); b.disabled = true; impMsg('복사하는 중…');
+  try{
+    const r = await post('/api/import', {paths: IMP.files.filter(f=>!f.error).map(f=>f.path), month: $('#impMonth').value.trim()});
+    if(!r.ok){ impMsg(r.error, 'err'); b.disabled = false; return; }
+    IMP.done = true; impRender(r.files);
+    if(r.copied){ impMsg(`${r.copied}개를 복사했습니다. 새 메일을 반영하는 중입니다…`, 'ok'); b.textContent = '완료';
+      setTimeout(() => { closeImport(); setSyncBtn(true); setTimeout(poll, 300); }, 1400); }
+    else impMsg('새로 복사한 파일이 없습니다. (이미 들어 있는 파일)', '');
+  }catch(e){ impMsg('서버 연결 끊김', 'err'); b.disabled = false; }
+};
+document.addEventListener('keydown', e => { if(e.key==='Escape' && $('#impBg').classList.contains('show')) closeImport(); }, true);
+
+/* ================= 상태 · 동기화 ================= */
+let first = true, wasRunning = false;
+function setSyncBtn(running, disabled){
+  const b = $('#syncBtn'); b.disabled = running || !!disabled; b.classList.toggle('spin', running);
+  b.innerHTML = ic('refresh') + `<span>${running ? '반영 중…' : '새 백업 반영'}</span>`;
+}
+async function poll(){
+  try{
+    const r = await fetch('/api/status').then(r=>r.json());
+    const s = r.status; S.facets = r.facets;
+    rootNow = r.root; rootOk = r.root_ok;
+    if(!rootOk && !s.running && !$('#setupBg').classList.contains('show')) openSetup(true);
+    renderSide(); setSyncBtn(s.running, !rootOk);
+    let foot = `<b>${r.facets.unique.toLocaleString()}통</b> (중복 제외)`;
+    if(s.running) foot = `반영 중 ${s.done}/${s.total} 파일 · ${r.facets.count.toLocaleString()}통`;
+    else if(s.message) foot = '⚠ ' + esc(s.message);
+    else { if(s.last_finished) foot += `<br>마지막 반영 ${esc(s.last_finished.slice(5,16))}`;
+           if(s.errors.length) foot += `<br>읽기 실패 ${s.errors.length}건`; }
+    if(r.auto && r.auto.on){
+      const a = r.auto.last;
+      foot += a ? `<br>자동 가져옴 ${esc(a.time.slice(5))} · ${esc(a.month)} ${a.copied}개` : '<br>자동 가져오기 켜짐';
+    }
+    if(r.version) foot += `<br><span style="opacity:.7">메일 백업 검색기 ${esc(r.version)}</span>`;
+    $('#sideFoot').innerHTML = foot; $('#sideFoot').title = (s.errors||[]).slice(0,30).join('\n') || r.root;
+    if(first || (wasRunning && !s.running)){
+      if(!first && s.added) toast(`새 메일 ${s.added.toLocaleString()}통을 반영했습니다`);
+      if(first || S.sel < 0) search();
+      first = false;
+    }
+    wasRunning = s.running;
+    if(s.running) setTimeout(poll, 1000);
+  }catch(e){ $('#sideFoot').textContent = '서버 연결 끊김 — 메일검색.bat 을 다시 실행하세요'; }
+}
+$('#syncBtn').onclick = async () => { setSyncBtn(true); await fetch('/api/reindex', {method:'POST', headers:{'X-Requested-With':'mailsearch'}}); setTimeout(poll, 300); };
+/* 주소로 바로 검색: http://127.0.0.1:8765/#q=검색어  (&open=1 이면 첫 메일을 연다) */
+(() => { const h = new URLSearchParams(location.hash.slice(1));
+  if(h.get('q')){ $('#q').value = h.get('q'); syncClear(); S.openFirst = h.get('open') === '1'; } })();
+setSyncBtn(false); showEmptyReader(); poll();
+</script>
+</body>
+</html>
