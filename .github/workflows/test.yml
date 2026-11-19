@@ -12,8 +12,8 @@ jobs:
       matrix:
         python-version: ["3.9", "3.14"]   # 지원 최저 버전 · 배포판에 넣은 버전
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Unit tests (fake demo mails only)
