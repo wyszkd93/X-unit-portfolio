@@ -28,7 +28,7 @@ So I built a searcher that **runs only on my PC and only reads the backup files*
 | Feature | Description |
 |---|---|
 | Index without extracting | Reads zips (including nested zips) and loose `.eml` files into SQLite. Incremental: only new or changed files are re-read |
-| Search | AND terms, `"exact phrase"`, `-exclude`; scope by subject, sender, recipients, body or attachment name |
+| Search | ~0.1 s over 7,500 mails. AND terms, `"exact phrase"`, `-exclude`; scope by subject, sender, recipients, body or attachment name |
 | Outlook-style 3 panes | Mailboxes and a year/month tree · mail list with infinite scroll · preview with highlighted terms |
 | Attachments and originals | Save attachments, show inline (cid) images, save the original `.eml` (opens in Outlook) |
 | Import backups | Pick downloaded zips; the month is detected from mail dates and files are copied into `YYYYMM 메일\` |
@@ -50,7 +50,7 @@ Append `#q=term` to the URL to search directly, e.g. `http://127.0.0.1:8765/#q=�
 ## Tests
 
 ```bash
-python -m unittest discover -s tests -v   # 26 tests, fake mails only
+python -m unittest discover -s tests -v   # 27 tests, fake mails only
 python tests/bench_search.py              # search timing (prints counts and times only)
 ```
 
@@ -71,6 +71,7 @@ flowchart LR
   end
 ```
 
+- **Full-text search**: SQLite FTS5 with 2-character tokens so Korean substring search is fast too (see 6 below)
 - **Index**: for each mail it stores subject, addresses, date, body text (up to 200 KB), attachment names and the source location (`zip path + path inside the zip`). Attachments and originals are re-read from the zip on demand.
 - **Incremental**: `mtime / size` per file; only new or changed zips are read, and mails from deleted files are removed.
 - **Dedupe**: the same mail in several backups is shown once, by `Message-ID`.
@@ -117,6 +118,31 @@ It handles raw mail, so other web pages open on the same PC are treated as a thr
 - **Import**: reads only the `Date` headers of up to 300 mails per zip and picks the most common month.
 - **Auto import**: waits until a downloading file is unchanged for a minute, remembers processed files by `name|size|mtime`, strips the browser's ` (1)` suffix, and skips files whose **content (SHA-256)** already exists even under another name. Originals are never touched.
 - **Mailbox for old backups**: when a backup has no mailbox info, mails from "me" (the most frequent sender in Sent) go to Sent, everything else to Inbox.
+
+### 6. Search speed: measure → find the cause → fix
+
+`tests/bench_search.py` on my real index (7,505 mails, 51 MB DB, i7-1165G7 laptop) showed **0.2–0.7 s** per search.
+
+| Cause | Fix |
+|---|---|
+| Deduplication by `Message-ID` recomputed with a full GROUP BY on every search | Precomputed into a `dup` column at index time |
+| The table was scanned twice (count + page) | One pass with `COUNT(*) OVER()`; sort by id/date only and read bodies just for the 50 shown mails |
+| Every term scanned all 51 MB of bodies with `instr` | **FTS5 full-text index** narrows candidates first |
+
+SQLite's default tokenizer splits on spaces, so it can't find "회의" inside "회의실", and `trigram` needs 3+ characters. So the app writes its own **overlapping 2-character tokens (bigrams)** per whitespace chunk (`테이블스페이스` → `테이 이블 블스 …`), queries them as phrases, and still applies the original `instr` conditions as the final check, so **results never change**. 75 real searches returned identical results with and without FTS, and the tests compare both paths too.
+
+| Search (median of 7) | Before | After |
+|---|---:|---:|
+| Empty query (full list) | 227 ms | **72 ms** |
+| One word | 569 ms | **58 ms** |
+| Two words (AND) | 532 ms | **90 ms** |
+| Exact phrase | 508 ms | **51 ms** |
+| With exclusion | 516 ms | **78 ms** |
+| Subject only | 213 ms | **69 ms** |
+| Body only | 681 ms | **132 ms** |
+| No match | 650 ms | **8 ms** |
+
+Trade-off: the index grows from 51 MB to 101 MB, and an old index needs about 26 s once to fill FTS (searches use the old path meanwhile). On older SQLite builds without FTS5 `contentless_delete`, the app falls back to the old path automatically.
 
 ## Privacy principles
 

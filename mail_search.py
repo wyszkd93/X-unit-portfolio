@@ -647,6 +647,67 @@ def db():
     return con
 
 
+# ---------------------------------------------------------------- 전문 검색 색인 (FTS5, 2글자 단위)
+# 한글은 띄어쓰기 단위로 끊으면 "회의실" 에서 "회의" 를 못 찾고, SQLite 기본 trigram 은 3글자 이상만 된다.
+# 그래서 공백으로 나눈 덩어리마다 2글자씩 겹쳐 끊은 토큰(bigram)을 직접 만들어 넣는다.
+#   "테이블스페이스" → 테이 이블 블스 스페 페이 이스   (검색어도 같은 방식으로 끊어 '연속된 구'로 찾음)
+# FTS 는 후보를 빠르게 좁히는 용도이고, 최종 판정은 기존 instr 조건이 그대로 한다(결과가 달라지지 않음).
+FTS_COLS = ("subject", "sender", "recipients", "cc", "attachments", "body")
+FTS = {"ok": False}   # 색인이 다 만들어졌을 때만 True
+
+
+def _bigram_tokens(chunk):
+    # 토큰을 16진수로 바꿔 넣어 FTS 토크나이저가 기호·한글을 다시 쪼개지 않게 한다
+    return ["x" + chunk[i:i + 2].encode("utf-8").hex() for i in range(len(chunk) - 1)]
+
+
+def fts_text(s):
+    return " ".join(tok for w in (s or "").lower().split() if len(w) >= 2 for tok in _bigram_tokens(w))
+
+
+def fts_query(term, cols):
+    """검색어 하나 → FTS MATCH 식 (2글자 이상 덩어리만). 쓸 수 없으면 None"""
+    parts = [f'{{{" ".join(cols)}}} : "{" ".join(_bigram_tokens(w))}"' for w in term.lower().split() if len(w) >= 2]
+    return " AND ".join(parts) or None
+
+
+def fts_setup(con):
+    """FTS5 표를 만든다. 이 Python 의 SQLite 가 지원하지 않으면 조용히 기존 방식만 쓴다"""
+    try:
+        con.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS mails_fts USING fts5({', '.join(FTS_COLS)},"
+                    " content='', contentless_delete=1, tokenize='unicode61')")
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
+def fts_add(con, where, args=()):
+    rows = con.execute(f"SELECT id, {', '.join(FTS_COLS)} FROM mails WHERE {where}", args).fetchall()
+    con.executemany(f"INSERT INTO mails_fts(rowid, {', '.join(FTS_COLS)}) VALUES(?{', ?' * len(FTS_COLS)})",
+                    [(r[0], *(fts_text(r[i + 1]) for i in range(len(FTS_COLS)))) for r in rows])
+
+
+def fts_remove_src(con, src):
+    if FTS.get("table"):
+        con.execute("DELETE FROM mails_fts WHERE rowid IN (SELECT id FROM mails WHERE src=?)", (src,))
+
+
+def fts_build_if_needed(con):
+    """예전 색인을 처음 열었을 때 한 번 전체를 FTS 에 넣는다 (그동안 검색은 기존 방식)"""
+    if not FTS.get("table"):
+        return
+    row = con.execute("SELECT v FROM meta WHERE k='fts'").fetchone()
+    if row and row[0] == "1":
+        FTS["ok"] = True
+        return
+    STATUS["current"] = "검색 색인 만드는 중"
+    con.execute("DELETE FROM mails_fts")
+    fts_add(con, "1")
+    con.execute("INSERT OR REPLACE INTO meta VALUES('fts', '1')")
+    con.commit()
+    FTS["ok"] = True
+
+
 def init_db():
     con = db()
     con.executescript("""
@@ -660,9 +721,17 @@ def init_db():
     CREATE INDEX IF NOT EXISTS ix_mails_src ON mails(src);
     CREATE INDEX IF NOT EXISTS ix_mails_date ON mails(date);
     """)
+    cols = {r[1] for r in con.execute("PRAGMA table_info(mails)")}
+    if "dup" not in cols:   # 중복 표시 컬럼 (예전 색인은 컬럼만 추가하고 바로 계산)
+        con.execute("ALTER TABLE mails ADD COLUMN dup INTEGER NOT NULL DEFAULT 0")
+        mark_duplicates(con)
+    con.execute("CREATE INDEX IF NOT EXISTS ix_mails_msgid ON mails(msgid)")
+    FTS["table"] = fts_setup(con)
+    row = con.execute("SELECT v FROM meta WHERE k='fts'").fetchone()
+    FTS["ok"] = bool(FTS["table"] and row and row[0] == "1")
     row = con.execute("SELECT v FROM meta WHERE k='version'").fetchone()
     if not row or row[0] != INDEX_VERSION:
-        con.executescript("DELETE FROM mails; DELETE FROM sources;")
+        con.executescript("DELETE FROM mails; DELETE FROM sources; DELETE FROM meta WHERE k='fts';")
         con.execute("INSERT OR REPLACE INTO meta VALUES('version', ?)", (INDEX_VERSION,))
     con.commit()
     con.close()
@@ -748,6 +817,7 @@ def run_index():
         # 사라진 파일 정리
         for p in set(known) - found_paths:
             STATUS["removed"] += 1
+            fts_remove_src(con, p)
             con.execute("DELETE FROM mails WHERE src=?", (p,))
             con.execute("DELETE FROM sources WHERE path=?", (p,))
         con.commit()
@@ -755,6 +825,7 @@ def run_index():
         STATUS["total"] = len(todo)
         for p, mtime, size in todo:
             STATUS["current"] = os.path.relpath(p, root)
+            fts_remove_src(con, p)
             con.execute("DELETE FROM mails WHERE src=?", (p,))
             month = month_of(p, root)
             rows = []
@@ -782,6 +853,8 @@ def run_index():
                     " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (src, inner, mon, box, r["msgid"], r["date"], r["sender"], r["recipients"], r["cc"],
                      r["subject"], r["body"], r["attachments"], r["size"]))
+            if FTS["ok"]:
+                fts_add(con, "src=?", (p,))
             con.execute("INSERT OR REPLACE INTO sources VALUES(?,?,?)", (p, mtime, size))
             con.commit()
             STATUS["added"] += len(rows)
@@ -789,6 +862,11 @@ def run_index():
             bm = STATUS["by_month"].setdefault(month or "(루트)", {"files": 0, "mails": 0})
             bm["files"] += 1
             bm["mails"] += len(rows)
+        mark_duplicates(con)
+        try:
+            fts_build_if_needed(con)
+        except Exception as ex:
+            STATUS["errors"].append(f"검색 색인: {ex}")
         try:
             classify_unsorted(con)
         except Exception as ex:
@@ -817,6 +895,13 @@ def my_emails(con):
         if e:
             cnt[e] = cnt.get(e, 0) + 1
     return {max(cnt, key=cnt.get)} if cnt else set()
+
+
+def mark_duplicates(con):
+    """같은 Message-ID 가 여러 백업에 있으면 가장 먼저 색인된 것만 dup=0. 검색 때마다 계산하지 않도록 미리 저장"""
+    con.execute("""UPDATE mails SET dup = CASE WHEN id IN (
+        SELECT MIN(id) FROM mails GROUP BY CASE WHEN msgid='' THEN 'id'||id ELSE msgid END) THEN 0 ELSE 1 END""")
+    con.commit()
 
 
 def classify_unsorted(con):
@@ -863,13 +948,13 @@ def get_row(mid):
 
 # ---------------------------------------------------------------- 검색
 
-FIELDS = {
-    "all": "(subject||' '||sender||' '||recipients||' '||cc||' '||attachments||' '||body)",
-    "subject": "subject",
-    "sender": "sender",
-    "recipients": "(recipients||' '||cc)",
-    "body": "body",
-    "attachments": "attachments",
+FIELDS = {   # 검색 범위 → 찾아볼 컬럼 (짧은 컬럼부터: 앞에서 찾으면 본문은 보지 않음)
+    "all": ("subject", "sender", "recipients", "cc", "attachments", "body"),
+    "subject": ("subject",),
+    "sender": ("sender",),
+    "recipients": ("recipients", "cc"),
+    "body": ("body",),
+    "attachments": ("attachments",),
 }
 
 
@@ -887,12 +972,18 @@ def parse_terms(q):
 def search(params):
     q = params.get("q", "")
     field = params.get("field", "all")
-    col = FIELDS.get(field, FIELDS["all"])
+    cols = FIELDS.get(field, FIELDS["all"])
     where, args = [], []
     terms = parse_terms(q)
+    if FTS["ok"]:   # 전문 검색 색인으로 후보를 먼저 좁힌다 (제외어는 아래 instr 로만)
+        mq = [x for x in (fts_query(t, cols) for neg, t in terms if not neg) if x]
+        if mq:
+            where.append("id IN (SELECT rowid FROM mails_fts WHERE mails_fts MATCH ?)")
+            args.append(" AND ".join(mq))
     for neg, t in terms:
-        where.append(f"instr(lower({col}), lower(?)) {'=' if neg else '>'} 0")
-        args.append(t)
+        hit = " OR ".join(f"instr(lower(ifnull({c},'')), ?) > 0" for c in cols)
+        where.append(f"NOT ({hit})" if neg else f"({hit})")
+        args += [t.lower()] * len(cols)
     if params.get("box"):
         where.append("box=?")
         args.append(params["box"])
@@ -910,18 +1001,28 @@ def search(params):
         args.append(params["to"] + " 99")
     if params.get("attach") == "1":
         where.append("attachments<>''")
-    # 같은 Message-ID 중복(풀린 eml + zip 둘 다 있는 경우 등)은 하나만
-    where.append("id IN (SELECT MIN(id) FROM mails GROUP BY CASE WHEN msgid='' THEN 'id'||id ELSE msgid END)")
+    # 같은 Message-ID 중복(풀린 eml + zip 둘 다 있는 경우 등)은 하나만 — 색인할 때 미리 계산해 둔 dup
+    where.append("dup=0")
     wsql = " AND ".join(where)
     order = "ASC" if params.get("sort") == "asc" else "DESC"
     page = max(0, int(params.get("page", 0) or 0))
     size = 50
     con = db()
     try:
-        total = con.execute(f"SELECT COUNT(*) FROM mails WHERE {wsql}", args).fetchone()[0]
-        rows = con.execute(
-            f"SELECT id,month,box,date,sender,recipients,subject,attachments,body FROM mails WHERE {wsql}"
-            f" ORDER BY date {order}, id {order} LIMIT ? OFFSET ?", args + [size, page * size]).fetchall()
+        # 조건에 맞는 메일을 한 번만 훑으면서 전체 개수(COUNT OVER)와 이번 페이지의 id 만 받는다.
+        # (본문 같은 큰 칸까지 들고 정렬하면 느려서, 정렬은 id·날짜로만 하고 내용은 50통만 따로 읽는다)
+        hits = con.execute(
+            f"SELECT id, COUNT(*) OVER() FROM mails WHERE {wsql} ORDER BY date {order}, id {order} LIMIT ? OFFSET ?",
+            args + [size, page * size]).fetchall()
+        if hits:
+            total = hits[0][1]
+        else:   # 마지막 페이지 너머를 요청한 경우에만 따로 센다
+            total = con.execute(f"SELECT COUNT(*) FROM mails WHERE {wsql}", args).fetchone()[0] if page else 0
+        ids = [h[0] for h in hits]
+        by_id = {r["id"]: r for r in con.execute(
+            f"SELECT id,month,box,date,sender,recipients,subject,attachments,body FROM mails"
+            f" WHERE id IN ({','.join('?' * len(ids))})", ids)} if ids else {}
+        rows = [by_id[i] for i in ids]
     finally:
         con.close()
     pos = [t for n, t in terms if not n]
@@ -956,7 +1057,7 @@ def facets():
         months = [r[0] for r in con.execute("SELECT DISTINCT month FROM mails ORDER BY month DESC")]
         boxes = [r[0] for r in con.execute("SELECT DISTINCT box FROM mails ORDER BY box")]
         count = con.execute("SELECT COUNT(*) FROM mails").fetchone()[0]
-        uniq = f"id IN (SELECT MIN(id) FROM mails GROUP BY CASE WHEN msgid='' THEN 'id'||id ELSE msgid END)"
+        uniq = "dup=0"
         unique = con.execute(f"SELECT COUNT(*) FROM mails WHERE {uniq}").fetchone()[0]
         ym_counts = {r[0]: r[1] for r in con.execute(
             f"SELECT substr(date,1,7), COUNT(*) FROM mails WHERE {uniq} GROUP BY 1 ORDER BY 1 DESC")}

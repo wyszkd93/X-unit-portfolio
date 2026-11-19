@@ -696,7 +696,7 @@ async function poll(){
     if(!rootOk && !s.running && !$('#setupBg').classList.contains('show')) openSetup(true);
     renderSide(); setSyncBtn(s.running, !rootOk);
     let foot = `<b>${r.facets.unique.toLocaleString()}통</b> (중복 제외)`;
-    if(s.running) foot = `반영 중 ${s.done}/${s.total} 파일 · ${r.facets.count.toLocaleString()}통`;
+    if(s.running) foot = s.current === '검색 색인 만드는 중' ? '검색 색인 만드는 중… (처음 한 번, 1분 이내)' : `반영 중 ${s.done}/${s.total} 파일 · ${r.facets.count.toLocaleString()}통`;
     else if(s.message) foot = '⚠ ' + esc(s.message);
     else { if(s.last_finished) foot += `<br>마지막 반영 ${esc(s.last_finished.slice(5,16))}`;
            if(s.errors.length) foot += `<br>읽기 실패 ${s.errors.length}건`; }

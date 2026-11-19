@@ -150,6 +150,26 @@ class IndexAndSearchTest(unittest.TestCase):
         self.assertIn("<mark", html)
         self.assertNotIn("<script", html.lower())
 
+    def test_fulltext_index_gives_same_results(self):
+        """FTS 로 후보를 좁혀도 기존 방식(전체 instr)과 결과가 똑같아야 함"""
+        if not m.FTS.get("table"):
+            self.skipTest("이 Python 의 SQLite 는 FTS5 contentless_delete 미지원 (기존 방식만 사용)")
+        self.assertTrue(m.FTS["ok"])
+        cases = [{"q": "회의"}, {"q": "테이블스페이스"}, {"q": "이블스"}, {"q": "배치 디스크"}, {"q": '"PM 작업"'},
+                 {"q": '"M 작"'}, {"q": "pm"}, {"q": "seoyeon.park@example.com"}, {"q": "a"},
+                 {"q": "장애보고", "field": "subject"}, {"q": "보안관제팀", "field": "sender"},
+                 {"q": "김하늘", "field": "recipients"}, {"q": "docx", "field": "attachments"},
+                 {"q": "서버 -공유"}, {"q": "없는검색어"}]
+        for params in cases:
+            with self.subTest(**params):
+                m.FTS["ok"] = True
+                fast = m.search(params)
+                m.FTS["ok"] = False
+                slow = m.search(params)
+                m.FTS["ok"] = True
+                self.assertEqual(fast["total"], slow["total"])
+                self.assertEqual([i["id"] for i in fast["items"]], [i["id"] for i in slow["items"]])
+
     def test_paging(self):
         p0 = m.search({"q": "", "page": "0"})
         p1 = m.search({"q": "", "page": "1"})
@@ -179,10 +199,25 @@ class IncrementalIndexTest(unittest.TestCase):
         f = m.facets()
         self.assertEqual(f["count"], self.total + n)
         self.assertEqual(f["unique"], self.total, "같은 Message-ID 는 한 번만 보여야 함")
+        if m.FTS["ok"]:   # 새로 들어온 파일도 전문 검색 색인에 들어가야 함
+            con = m.db()
+            try:
+                hits = con.execute("SELECT COUNT(*) FROM mails_fts WHERE rowid IN (SELECT id FROM mails WHERE src=?)",
+                                   (copy,)).fetchone()[0]
+            finally:
+                con.close()
+            self.assertEqual(hits, n)
         os.remove(copy)
         m.run_index()
         self.assertEqual(m.STATUS["removed"], 1)
         self.assertEqual(m.facets()["count"], self.total)
+        if m.FTS["ok"]:   # 지운 파일의 메일은 전문 검색 색인에서도 빠져야 함
+            con = m.db()
+            try:
+                left = con.execute("SELECT COUNT(*) FROM mails_fts").fetchone()[0]
+            finally:
+                con.close()
+            self.assertEqual(left, self.total)
 
     def test_unsorted_backup_classified_by_sender(self):
         mine = make_demo.make_mail(make_demo.addr(*make_demo.ME), ["a@example.com"], [], "내가 보낸 메일", "본문",

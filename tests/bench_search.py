@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-검색 속도 측정 (색인이 이미 있으면 읽기만 함):
+검색 속도 측정 (색인이 이미 있으면 검색만 함):
     python tests/bench_search.py                     # 지금 쓰는 색인 (프로그램 폴더의 mail_index.db)
     python tests/bench_search.py --data-dir demo/data
 검색어별 걸린 시간(중앙값)과 결과 수만 출력하고, 메일 내용은 출력하지 않는다.
@@ -30,8 +30,9 @@ def main(runs=7):
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
-    if not os.path.exists(m.DB_PATH):   # 색인이 아직 없으면(데모·CI) 먼저 만든다. 있으면 건드리지 않음
-        m.init_db()
+    fresh = not os.path.exists(m.DB_PATH)
+    m.init_db()            # 예전 색인이면 새 컬럼만 추가
+    if fresh:              # 색인이 아직 없으면(데모·CI) 먼저 만든다
         m.run_index()
     f = m.facets()
     size = os.path.getsize(m.DB_PATH) / 1048576
