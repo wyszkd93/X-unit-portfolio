@@ -36,8 +36,8 @@ def _arg(name):
     return None
 
 
-# 설정·색인 파일 위치. 기본은 프로그램 폴더, --data-dir 로 바꿀 수 있다 (데모/테스트용)
-DATA_DIR = os.path.abspath(_arg("--data-dir") or APP_DIR)
+# 설정·색인 파일 위치. 기본은 프로그램 폴더. --data-dir 또는 환경변수 MAIL_SEARCH_DATA_DIR 로 바꿀 수 있다 (데모/테스트용)
+DATA_DIR = os.path.abspath(_arg("--data-dir") or os.environ.get("MAIL_SEARCH_DATA_DIR") or APP_DIR)
 os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 DB_PATH = os.path.join(DATA_DIR, "mail_index.db")

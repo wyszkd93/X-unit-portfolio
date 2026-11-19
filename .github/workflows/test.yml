@@ -1,0 +1,28 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.14"]   # 지원 최저 버전 · 배포판에 넣은 버전
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Unit tests (fake demo mails only)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -m unittest discover -s tests -v
+      - name: Search benchmark on demo data
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python make_demo.py
+          python tests/bench_search.py --data-dir demo/data

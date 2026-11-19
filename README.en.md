@@ -1,5 +1,7 @@
 # Mail Backup Search
 
+[![tests](https://github.com/wyszkd93/X-unit-portfolio/actions/workflows/test.yml/badge.svg?branch=EMAIL)](https://github.com/wyszkd93/X-unit-portfolio/actions/workflows/test.yml?query=branch%3AEMAIL)
+
 [한국어](README.md) | **English**
 
 A local web app for Windows that searches monthly mail-backup zip files **without extracting them**.
@@ -45,6 +47,16 @@ python mail_search.py --data-dir demo/data   # http://127.0.0.1:8790
 For real backups, run `python mail_search.py` and pick the folder that holds the backup zips.
 Append `#q=term` to the URL to search directly, e.g. `http://127.0.0.1:8765/#q=장애보고&open=1`.
 
+## Tests
+
+```bash
+python -m unittest discover -s tests -v   # 26 tests, fake mails only
+python tests/bench_search.py              # search timing (prints counts and times only)
+```
+
+- Covers indexing (nested zips, Korean encodings, incremental, dedupe, mailbox classification), search (AND, phrase, exclude, scope, filters, paging), import and auto import, HTTP security (Host, CSRF, CSP, attachment downloads) and .bat file rules.
+- GitHub Actions runs them on every push on Windows with Python 3.9 and 3.14.
+
 ## Architecture
 
 ```mermaid
@@ -68,7 +80,8 @@ mail_search.py      server, indexer, search, import (single file, stdlib only)
 web/index.html      UI (plain HTML/CSS/JS, no framework)
 make_dist.py        builds the distribution zip (allowlist; aborts if private files slip in)
 make_icon.py        generates the .ico in pure Python
-make_demo.py        generates fictional backups for screenshots and demos
+make_demo.py        generates fictional backups for screenshots, demos and tests
+tests/              unit tests and a search benchmark
 *.bat               launcher / desktop shortcut / start-at-login on and off
 .claude/            /동기화 (sync) command for Claude Code
 ```

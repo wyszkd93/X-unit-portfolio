@@ -1,5 +1,7 @@
 # 메일 백업 검색기
 
+[![tests](https://github.com/wyszkd93/X-unit-portfolio/actions/workflows/test.yml/badge.svg?branch=EMAIL)](https://github.com/wyszkd93/X-unit-portfolio/actions/workflows/test.yml?query=branch%3AEMAIL)
+
 **한국어** | [English](README.en.md)
 
 매달 zip 으로 받는 메일 백업을 **압축을 풀지 않고** 바로 검색하는 Windows 용 로컬 웹 앱입니다.
@@ -45,6 +47,16 @@ python mail_search.py --data-dir demo/data   # http://127.0.0.1:8790
 실제 백업으로 쓸 때는 `python mail_search.py` 를 실행하고, 처음 뜨는 창에서 백업 zip 을 모아 둔 폴더를 고르면 됩니다.
 주소에 `#q=검색어` 를 붙이면 바로 검색됩니다. 예) `http://127.0.0.1:8765/#q=장애보고&open=1`
 
+## 테스트
+
+```bash
+python -m unittest discover -s tests -v   # 26개 테스트, 가짜 메일만 사용
+python tests/bench_search.py              # 검색 속도 측정 (결과 수·시간만 출력)
+```
+
+- 색인(중첩 zip·한글 인코딩·증분·중복 제거·메일함 분류), 검색(AND·문구·제외어·범위·필터·페이지), 가져오기·자동 가져오기, HTTP 보안(Host·CSRF·CSP·첨부 다운로드), bat 파일 규칙을 검사합니다.
+- GitHub Actions 에서 Windows + Python 3.9 / 3.14 로 푸시마다 자동 실행됩니다.
+
 ## 구조
 
 ```mermaid
@@ -68,7 +80,8 @@ mail_search.py      서버 · 색인기 · 검색 · 가져오기 (단일 파일
 web/index.html      화면 (프레임워크 없이 HTML/CSS/JS 한 파일)
 make_dist.py        배포 zip 만들기 (허용 목록 방식, 개인 파일 포함 시 중단)
 make_icon.py        아이콘(.ico) 을 순수 Python 으로 생성
-make_demo.py        스크린샷·시연용 가짜 메일 백업 생성
+make_demo.py        스크린샷·시연·테스트용 가짜 메일 백업 생성
+tests/              단위 테스트 · 검색 속도 측정
 *.bat               실행 / 바탕화면 바로가기 / 자동 실행 켜기·끄기
 .claude/            Claude Code 용 /동기화 명령
 ```
@@ -123,6 +136,7 @@ make_demo.py        스크린샷·시연용 가짜 메일 백업 생성
 
 - Windows 10, Python 3.9 이상 (배포판은 3.14 embeddable)
 - 외부 라이브러리 없음: `http.server`, `sqlite3`, `zipfile`, `email`
+- 테스트: `python -m unittest discover -s tests`
 - [Claude Code](https://claude.com/claude-code) 와 함께 개발했습니다. `.claude/skills` 에 색인 반영용 `/동기화` 명령이 있습니다.
 
 ## 라이선스

@@ -138,19 +138,19 @@ def write_zip(path, items, nested=False):
             z.writestr(n, raw)
 
 
-def main():
-    try:
-        import sys
-        sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
-    rnd = random.Random(20261117)
-    backup = os.path.join(DEMO, "backup")
-    data = os.path.join(DEMO, "data")
-    shutil.rmtree(DEMO, ignore_errors=True)
+MONTHS = [(2026, 6), (2026, 7), (2026, 8), (2026, 9), (2026, 10)]
+
+
+def build(out_dir, port=8790, seed=20261117):
+    """out_dir/backup 에 가짜 백업, out_dir/data/config.json 을 만든다. 만든 메일 수를 돌려준다"""
+    rnd = random.Random(seed)
+    random.seed(seed)   # Message-ID 도 매번 같게
+    backup = os.path.join(out_dir, "backup")
+    data = os.path.join(out_dir, "data")
+    shutil.rmtree(out_dir, ignore_errors=True)
     os.makedirs(data)
     total = 0
-    for y, m in [(2026, 6), (2026, 7), (2026, 8), (2026, 9), (2026, 10)]:
+    for y, m in MONTHS:
         d = os.path.join(backup, f"{y}{m:02d} 메일")
         os.makedirs(d)
         inbox, sent, ext = month_mails(y, m, rnd)
@@ -159,8 +159,18 @@ def main():
         write_zip(os.path.join(d, "외부메일함.zip"), ext)
         total += len(inbox) + len(sent) + len(ext)
     with open(os.path.join(data, "config.json"), "w", encoding="utf-8") as f:
-        json.dump({"mail_root": backup, "port": 8790, "open_browser": False}, f, ensure_ascii=False, indent=2)
-    print(f"가짜 메일 {total}통 → {backup}")
+        json.dump({"mail_root": backup, "port": port, "open_browser": False}, f, ensure_ascii=False, indent=2)
+    return total
+
+
+def main():
+    try:
+        import sys
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+    total = build(DEMO)
+    print(f"가짜 메일 {total}통 → {os.path.join(DEMO, 'backup')}")
     print("실행: python mail_search.py --data-dir demo/data   (http://127.0.0.1:8790)")
 
 
